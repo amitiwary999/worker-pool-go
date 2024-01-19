@@ -8,7 +8,7 @@ type workerConfig struct {
 func NewWorkerConfig(size int) *workerConfig {
 	return &workerConfig{
 		size: size,
-		jobs: make(chan func(params ...any)),
+		jobs: make(chan func(params ...any), size),
 	}
 }
 
