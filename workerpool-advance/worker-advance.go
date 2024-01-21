@@ -14,6 +14,7 @@ func (w *worker) doJob() {
 			if r := recover(); r != nil {
 				fmt.Printf("panic in do job %v ", r)
 			}
+			w.pool.cond.Broadcast()
 		}()
 		for task := range w.tasks {
 			task()
