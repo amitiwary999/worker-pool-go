@@ -1,6 +1,7 @@
 package workerpooladvance
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -31,15 +32,19 @@ func (p *pool) addRunning() {
 	atomic.AddInt32(&p.running, 1)
 }
 
-func (p *pool) submit(fn func()) {
-
+func (p *pool) Submit(fn func()) {
+	w, err := p.getWorker()
+	if err != nil {
+		fmt.Println("failed to get worker")
+	}
+	w.submitJob(fn)
 }
 
-func (p *pool) getWorker() (w worker, err error) {
+func (p *pool) getWorker() (w *worker, err error) {
 	p.lock.Lock()
 retry:
 	if c := p.capacity; c > p.running {
-		w = p.workerPool.Get().(worker)
+		w = p.workerPool.Get().(*worker)
 		p.lock.Unlock()
 		w.doJob()
 		return
