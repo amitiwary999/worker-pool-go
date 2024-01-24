@@ -8,16 +8,19 @@ type worker struct {
 }
 
 func (w *worker) doJob() {
+	w.pool.addRunning(1)
 	go func() {
 		defer func() {
-			w.pool.workerPool.Put(w)
 			if r := recover(); r != nil {
 				fmt.Printf("panic in do job %v ", r)
 			}
-			w.pool.cond.Broadcast()
 		}()
 		for task := range w.tasks {
+			fmt.Println("about to start task")
 			task()
+			w.pool.addRunning(-1)
+			w.pool.workerPool.Put(w)
+			w.pool.cond.Signal()
 		}
 	}()
 }

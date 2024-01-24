@@ -28,8 +28,8 @@ func NewPool(capacity int32) *pool {
 	return p
 }
 
-func (p *pool) addRunning() {
-	atomic.AddInt32(&p.running, 1)
+func (p *pool) addRunning(taskCount int) {
+	atomic.AddInt32(&p.running, int32(taskCount))
 }
 
 func (p *pool) Submit(fn func()) {
@@ -37,6 +37,7 @@ func (p *pool) Submit(fn func()) {
 	if err != nil {
 		fmt.Println("failed to get worker")
 	}
+	fmt.Println("submit task")
 	w.submitJob(fn)
 }
 
@@ -47,8 +48,10 @@ retry:
 		w = p.workerPool.Get().(*worker)
 		p.lock.Unlock()
 		w.doJob()
+		fmt.Printf("worker count %v capacity %v \n", p.running, c)
 		return
 	}
+	fmt.Println("before the wait")
 	p.cond.Wait()
 	goto retry
 }
