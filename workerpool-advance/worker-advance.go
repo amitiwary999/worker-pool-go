@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+type workerIntf interface {
+	doJob()
+	finish()
+	submitJob(func())
+	getLastUsedTime() time.Time
+}
+
 type worker struct {
 	pool         *pool
 	tasks        chan func()
@@ -15,6 +22,8 @@ func (w *worker) doJob() {
 	w.pool.addRunning(1)
 	go func() {
 		defer func() {
+			w.pool.addRunning(-1)
+			w.pool.workerPool.Put(w)
 			if r := recover(); r != nil {
 				fmt.Printf("panic in do job %v ", r)
 			}
@@ -25,17 +34,9 @@ func (w *worker) doJob() {
 			}
 			fmt.Println("about to start task")
 			task()
-			w.returnWorkerPool()
+			w.pool.returnWorkerPool(w)
 		}
 	}()
-}
-
-func (w *worker) returnWorkerPool() {
-	w.lastUsedTime = time.Now()
-	w.pool.workerPool.Put(w)
-	w.pool.addRunning(-1)
-	w.pool.cond.Signal()
-	w.pool.lock.Unlock()
 }
 
 func (w *worker) submitJob(fn func()) {
@@ -44,4 +45,8 @@ func (w *worker) submitJob(fn func()) {
 
 func (w *worker) finish() {
 	w.tasks <- nil
+}
+
+func (w *worker) getLastUsedTime() time.Time {
+	return w.lastUsedTime
 }
