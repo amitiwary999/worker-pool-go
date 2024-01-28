@@ -4,6 +4,11 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+var (
+	expiryTime = 5 * time.Second
 )
 
 type pool struct {
@@ -54,4 +59,19 @@ retry:
 	fmt.Println("before the wait")
 	p.cond.Wait()
 	goto retry
+}
+
+func (p *pool) purgeWorker() {
+	ticker := time.NewTicker(expiryTime)
+
+	defer func() {
+		ticker.Stop()
+	}()
+
+	for {
+		select {
+		case <-ticker.C:
+		}
+
+	}
 }
