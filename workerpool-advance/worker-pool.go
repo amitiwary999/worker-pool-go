@@ -1,6 +1,7 @@
 package workerpooladvance
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ type pool struct {
 	cond       *sync.Cond
 	workerPool sync.Pool
 	workers    []workerIntf
+	cancelFunc context.CancelFunc
 }
 
 func NewPool(capacity int32) *pool {
@@ -32,7 +34,14 @@ func NewPool(capacity int32) *pool {
 			tasks: make(chan func(), capacity),
 		}
 	}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	p.cancelFunc = cancelFunc
+	go p.purgeWorker(ctx)
 	return p
+}
+
+func (p *pool) Release() {
+	p.cancelFunc()
 }
 
 func (p *pool) addRunning(taskCount int) {
@@ -56,6 +65,7 @@ retry:
 		w = p.workers[workerLen-1]
 		p.workers[workerLen-1] = nil
 		p.workers = p.workers[:workerLen-1]
+		p.lock.Unlock()
 		return
 	}
 
@@ -71,7 +81,7 @@ retry:
 	goto retry
 }
 
-func (p *pool) purgeWorker() {
+func (p *pool) purgeWorker(ctx context.Context) {
 	ticker := time.NewTicker(expiryTime)
 
 	defer func() {
@@ -80,6 +90,8 @@ func (p *pool) purgeWorker() {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
 		}
 		unusedWorkers := p.getUnusedWorker()
@@ -92,17 +104,17 @@ func (p *pool) purgeWorker() {
 func (p *pool) returnWorkerPool(w *worker) {
 	w.lastUsedTime = time.Now()
 	p.workers = append(p.workers, w)
+	fmt.Printf("workers length %v \n", len(p.workers))
 	p.cond.Signal()
-	p.lock.Unlock()
 }
 
 func (p *pool) getUnusedWorker() []workerIntf {
 	expiredTime := time.Now().Add(-expiryTime)
 	length := len(p.workers)
-	last := length
+	last := length - 1
 	first := 0
 	for first <= last {
-		mid := (first + (last-first)<<1)
+		mid := (first + (last-first)>>1)
 		if p.workers[mid].getLastUsedTime().Before(expiredTime) {
 			first = mid + 1
 		} else {
