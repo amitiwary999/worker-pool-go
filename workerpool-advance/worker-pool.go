@@ -94,7 +94,9 @@ func (p *pool) purgeWorker(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		p.lock.Lock()
 		unusedWorkers := p.getUnusedWorker()
+		p.lock.Unlock()
 		for _, unusedWorker := range unusedWorkers {
 			unusedWorker.finish()
 		}
@@ -104,7 +106,6 @@ func (p *pool) purgeWorker(ctx context.Context) {
 func (p *pool) returnWorkerPool(w *worker) {
 	w.lastUsedTime = time.Now()
 	p.workers = append(p.workers, w)
-	fmt.Printf("workers length %v \n", len(p.workers))
 	p.cond.Signal()
 }
 
@@ -121,13 +122,15 @@ func (p *pool) getUnusedWorker() []workerIntf {
 			last = mid - 1
 		}
 	}
+	expired := []workerIntf{}
 	if last != -1 {
-		expired := p.workers[:last]
-		copy(p.workers, p.workers[last+1:])
-		for i := last + 1; i < length; i++ {
+		expired = append(expired, p.workers[:last+1]...)
+		copiedCount := copy(p.workers, p.workers[last+1:])
+		for i := copiedCount; i < length; i++ {
 			p.workers[i] = nil
 		}
+		p.workers = p.workers[:copiedCount]
 		return expired
 	}
-	return nil
+	return expired
 }
