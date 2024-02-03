@@ -25,8 +25,9 @@ func (w *worker) doJob() {
 			w.pool.addRunning(-1)
 			w.pool.workerPool.Put(w)
 			if r := recover(); r != nil {
-				fmt.Printf("panic in do job %v ", r)
+				fmt.Printf("panic in do job %v \n", r)
 			}
+			w.pool.cond.Signal()
 		}()
 		for task := range w.tasks {
 			if task == nil {

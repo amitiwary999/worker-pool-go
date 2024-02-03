@@ -85,6 +85,7 @@ func (p *pool) purgeWorker(ctx context.Context) {
 	ticker := time.NewTicker(expiryTime)
 
 	defer func() {
+		recover()
 		ticker.Stop()
 	}()
 
