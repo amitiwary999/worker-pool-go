@@ -20,6 +20,7 @@ type pool struct {
 	workerPool sync.Pool
 	workers    []workerIntf
 	cancelFunc context.CancelFunc
+	open       bool
 }
 
 func NewPool(capacity int32) *pool {
@@ -42,6 +43,15 @@ func NewPool(capacity int32) *pool {
 
 func (p *pool) Release() {
 	p.cancelFunc()
+	p.lock.Lock()
+	workerLen := len(p.workers)
+	for i := 0; i < workerLen; i++ {
+		p.workers[i].finish()
+		p.workers[i] = nil
+	}
+	p.lock.Unlock()
+	p.open = false
+	p.cond.Broadcast()
 }
 
 func (p *pool) addRunning(taskCount int) {
@@ -49,6 +59,9 @@ func (p *pool) addRunning(taskCount int) {
 }
 
 func (p *pool) Submit(fn func()) {
+	if !p.open {
+		return
+	}
 	w, err := p.getWorker()
 	if err != nil {
 		fmt.Println("failed to get worker")
