@@ -2,6 +2,7 @@ package workerpooladvance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,7 @@ func NewPool(capacity int32) *pool {
 	p := &pool{
 		capacity: capacity,
 		workers:  make([]workerIntf, 0, capacity),
+		open:     true,
 	}
 	p.cond = sync.NewCond(&p.lock)
 	p.workerPool.New = func() interface{} {
@@ -42,6 +44,7 @@ func NewPool(capacity int32) *pool {
 }
 
 func (p *pool) Release() {
+	p.open = false
 	p.cancelFunc()
 	p.lock.Lock()
 	workerLen := len(p.workers)
@@ -50,7 +53,6 @@ func (p *pool) Release() {
 		p.workers[i] = nil
 	}
 	p.lock.Unlock()
-	p.open = false
 	p.cond.Broadcast()
 }
 
@@ -58,9 +60,9 @@ func (p *pool) addRunning(taskCount int) {
 	atomic.AddInt32(&p.running, int32(taskCount))
 }
 
-func (p *pool) Submit(fn func()) {
+func (p *pool) Submit(fn func()) error {
 	if !p.open {
-		return
+		return errors.New("pool is already closed")
 	}
 	w, err := p.getWorker()
 	if err != nil {
@@ -68,6 +70,7 @@ func (p *pool) Submit(fn func()) {
 	}
 	fmt.Println("submit task")
 	w.submitJob(fn)
+	return nil
 }
 
 func (p *pool) getWorker() (w workerIntf, err error) {
